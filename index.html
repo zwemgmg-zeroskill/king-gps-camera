@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Map Camera - King Engineering</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        #videoElement { width: 100%; max-width: 400px; border: 2px solid #333; border-radius: 8px; }
+        #canvasElement { display: none; }
+        #capturedImage { width: 100%; max-width: 400px; margin-top: 15px; border: 2px solid #4CAF50; border-radius: 8px; display: none; }
+        
+        .controls { margin-top: 15px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        input[type="text"] { width: 90%; max-width: 380px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+        button { background-color: #4CAF50; color: white; padding: 12px 24px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; width: 90%; max-width: 400px; }
+        button:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+
+    <h2>King Engineering - AC Service Camera</h2>
+    
+    <video id="videoElement" autoplay playsinline></video>
+    
+    <div class="controls">
+        <input type="text" id="customTextInput" placeholder="ဒီနေရာမှာ Custom Text ရိုက်ထည့်ပါ (ဥပမာ - Unit 3, Block A)" />
+        <button id="captureBtn">Take Photo & Add Stamp</button>
+    </div>
+
+    <canvas id="canvasElement"></canvas>
+
+    <img id="logoImg" src="logo.png" style="display: none;" crossorigin="anonymous">
+
+    <img id="capturedImage" alt="Captured Photo with Stamp" />
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const ctx = canvas.getContext('2d');
+        const captureBtn = document.getElementById('captureBtn');
+        const capturedImage = document.getElementById('capturedImage');
+        const customTextInput = document.getElementById('customTextInput');
+        const logoImg = document.getElementById('logoImg');
+
+        let currentLat = "Fetching...";
+        let currentLon = "Fetching...";
+
+        // 1. Get Location
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    currentLat = position.coords.latitude.toFixed(5);
+                    currentLon = position.coords.longitude.toFixed(5);
+                },
+                (error) => {
+                    console.error("Error getting location: ", error);
+                    currentLat = "Error";
+                    currentLon = "Error";
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        // 2. Start Camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then((stream) => {
+                video.srcObject = stream;
+            })
+            .catch((err) => {
+                console.error("Error accessing camera: ", err);
+                alert("Camera ဖွင့်လို့မရပါ။ Permission ပေးထားခြင်း ရှိမရှိ စစ်ဆေးပါ။");
+            });
+
+        // 3. Capture Photo & Stamp
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw Photo
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Draw Stamp Background (အမည်းရောင် ခပ်ရေးရေး နောက်ခံ)
+            ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+            ctx.fillRect(10, canvas.height - 220, canvas.width - 20, 210);
+
+            // Draw Logo 
+            // x=25, y=canvas.height-205 မှာ 60x60 size နဲ့ ဆွဲပါမယ်
+            if(logoImg.complete && logoImg.naturalHeight !== 0) {
+                ctx.drawImage(logoImg, 25, canvas.height - 205, 60, 60);
+            }
+
+            ctx.textBaseline = "top";
+
+            // 1. KING ENGINEERING Air-Con Service (Bold)
+            ctx.fillStyle = "#FFD700"; // အဝါရောင် (Gold color လေးနဲ့ပေါ်အောင်)
+            ctx.font = "bold 20px Arial";
+            ctx.fillText("KING ENGINEERING Air-Con Service", 95, canvas.height - 200);
+
+            // 2. Project Name
+            ctx.fillStyle = "white";
+            ctx.font = "18px Arial";
+            ctx.fillText("CITY SCHOOL YANGON AC PROJECT", 95, canvas.height - 170);
+
+            // 3. Custom Text (Text box ထဲက ရိုက်ထည့်လိုက်တဲ့ စာ)
+            const customText = customTextInput.value;
+            if (customText.trim() !== "") {
+                ctx.fillStyle = "#4CAF50"; // အစိမ်းရောင်
+                ctx.font = "bold 18px Arial";
+                ctx.fillText("🔧 " + customText, 25, canvas.height - 130);
+            }
+
+            // 4. Location & Date/Time
+            const dateStr = new Date().toLocaleString('en-US');
+            ctx.fillStyle = "white";
+            ctx.font = "16px Arial";
+            ctx.fillText("📍 Lat: " + currentLat + ", Lon: " + currentLon, 25, canvas.height - 95);
+            ctx.fillText("🕒 " + dateStr, 25, canvas.height - 65);
+
+            // Output to Image tag
+            const dataUrl = canvas.toDataURL('image/jpeg');
+            capturedImage.src = dataUrl;
+            capturedImage.style.display = "block";
+        });
+    </script>
+
+</body>
+</html>
