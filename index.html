@@ -2,126 +2,283 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS Map Camera - King Engineering</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>King Engineering Camera</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
-        #videoElement { width: 100%; max-width: 400px; border: 2px solid #333; border-radius: 8px; }
+        /* Reset & Base Setup */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #000; overflow: hidden; font-family: Arial, sans-serif; }
+
+        /* Full Screen Camera */
+        #videoElement {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Top Bar Overlay */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
+        }
+
+        #gpsStatus {
+            color: #fff;
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1px solid #FFD700;
+        }
+
+        .gps-active { color: #4CAF50 !important; border-color: #4CAF50 !important; }
+
+        #customTextInput {
+            width: 60%;
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid #fff;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            outline: none;
+        }
+        #customTextInput::placeholder { color: #ddd; }
+
+        /* Bottom Bar Overlay */
+        .bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px 20px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+        }
+
+        /* Shutter Button */
+        #captureBtn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: transparent;
+            border: 4px solid #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        #captureBtn .inner-circle {
+            width: 54px;
+            height: 54px;
+            background-color: #fff;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        #captureBtn:active .inner-circle { background-color: #ddd; transform: scale(0.9); }
+
+        /* Switch Camera Button */
+        #switchCameraBtn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        /* Hidden Elements */
         #canvasElement { display: none; }
-        #capturedImage { width: 100%; max-width: 400px; margin-top: 15px; border: 2px solid #4CAF50; border-radius: 8px; display: none; }
         
-        .controls { margin-top: 15px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        input[type="text"] { width: 90%; max-width: 380px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
-        button { background-color: #4CAF50; color: white; padding: 12px 24px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; width: 90%; max-width: 400px; }
-        button:hover { background-color: #45a049; }
+        /* Flash effect */
+        .flash {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; z-index: 100; opacity: 0; pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-    <h2>King Engineering - AC Service Camera</h2>
-    
     <video id="videoElement" autoplay playsinline></video>
-    
-    <div class="controls">
-        <input type="text" id="customTextInput" placeholder="ဒီနေရာမှာ Custom Text ရိုက်ထည့်ပါ (ဥပမာ - Unit 3, Block A)" />
-        <button id="captureBtn">Take Photo & Add Stamp</button>
+    <div id="flashEffect" class="flash"></div>
+
+    <div class="top-bar">
+        <input type="text" id="customTextInput" placeholder="Custom Text (e.g., Unit 1)" />
+        <div id="gpsStatus">GPS: 🔴 wait...</div>
+    </div>
+
+    <div class="bottom-bar">
+        <div style="width: 50px;"></div> <div id="captureBtn">
+            <div class="inner-circle"></div>
+        </div>
+        
+        <button id="switchCameraBtn">🔄</button>
     </div>
 
     <canvas id="canvasElement"></canvas>
-
     <img id="logoImg" src="logo.png" style="display: none;" crossorigin="anonymous">
-
-    <img id="capturedImage" alt="Captured Photo with Stamp" />
 
     <script>
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('canvasElement');
         const ctx = canvas.getContext('2d');
         const captureBtn = document.getElementById('captureBtn');
-        const capturedImage = document.getElementById('capturedImage');
+        const switchCameraBtn = document.getElementById('switchCameraBtn');
         const customTextInput = document.getElementById('customTextInput');
         const logoImg = document.getElementById('logoImg');
+        const gpsStatus = document.getElementById('gpsStatus');
+        const flashEffect = document.getElementById('flashEffect');
 
-        let currentLat = "Fetching...";
-        let currentLon = "Fetching...";
+        let currentLat = "Location Error";
+        let currentLon = "Location Error";
+        let isFrontCamera = false;
+        let stream = null;
 
-        // 1. Get Location
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    currentLat = position.coords.latitude.toFixed(5);
-                    currentLon = position.coords.longitude.toFixed(5);
-                },
-                (error) => {
-                    console.error("Error getting location: ", error);
-                    currentLat = "Error";
-                    currentLon = "Error";
-                },
-                { enableHighAccuracy: true }
-            );
+        // 1. Better GPS Handling
+        function startGPS() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        currentLat = position.coords.latitude.toFixed(6);
+                        currentLon = position.coords.longitude.toFixed(6);
+                        gpsStatus.innerHTML = "GPS: 🟢 OK";
+                        gpsStatus.classList.add("gps-active");
+                    },
+                    (error) => {
+                        console.warn("GPS Error: ", error.message);
+                        gpsStatus.innerHTML = "GPS: 🔴 Error";
+                        gpsStatus.classList.remove("gps-active");
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+                );
+            }
         }
 
-        // 2. Start Camera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then((stream) => {
-                video.srcObject = stream;
-            })
-            .catch((err) => {
-                console.error("Error accessing camera: ", err);
-                alert("Camera ဖွင့်လို့မရပါ။ Permission ပေးထားခြင်း ရှိမရှိ စစ်ဆေးပါ။");
-            });
+        // 2. Camera Setup (with Front/Back switching)
+        function startCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop()); // Stop existing stream
+            }
+            
+            const constraints = {
+                video: { facingMode: isFrontCamera ? "user" : "environment" }
+            };
 
-        // 3. Capture Photo & Stamp
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then((newStream) => {
+                    stream = newStream;
+                    video.srcObject = stream;
+                })
+                .catch((err) => {
+                    console.error("Camera access denied!", err);
+                    alert("ကင်မရာဖွင့်ခွင့် (Permission) ပေးဖို့ လိုအပ်ပါတယ်။");
+                });
+        }
+
+        // Initialize App
+        startGPS();
+        startCamera();
+
+        // Switch Camera Event
+        switchCameraBtn.addEventListener('click', () => {
+            isFrontCamera = !isFrontCamera;
+            startCamera();
+        });
+
+        // 3. Capture, Stamp and Auto-Save
         captureBtn.addEventListener('click', () => {
+            // Flash Effect
+            flashEffect.style.opacity = "1";
+            setTimeout(() => { flashEffect.style.transition = "opacity 0.5s"; flashEffect.style.opacity = "0"; }, 50);
+
+            // Set Canvas to match Video resolution
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
 
             // Draw Photo
+            // If front camera, flip the image horizontally
+            if (isFrontCamera) {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Reset transform before drawing text
+            if (isFrontCamera) {
+                ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            }
 
-            // Draw Stamp Background (အမည်းရောင် ခပ်ရေးရေး နောက်ခံ)
+            // --- Draw Stamp ---
+            const rectHeight = 220;
+            const marginX = 20;
+            const startY = canvas.height - rectHeight - 20;
+
+            // Background for stamp
             ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-            ctx.fillRect(10, canvas.height - 220, canvas.width - 20, 210);
+            ctx.fillRect(marginX, startY, canvas.width - (marginX * 2), rectHeight);
 
-            // Draw Logo 
-            // x=25, y=canvas.height-205 မှာ 60x60 size နဲ့ ဆွဲပါမယ်
+            // Draw Logo
             if(logoImg.complete && logoImg.naturalHeight !== 0) {
-                ctx.drawImage(logoImg, 25, canvas.height - 205, 60, 60);
+                ctx.drawImage(logoImg, marginX + 15, startY + 15, 60, 60);
             }
 
             ctx.textBaseline = "top";
 
-            // 1. KING ENGINEERING Air-Con Service (Bold)
-            ctx.fillStyle = "#FFD700"; // အဝါရောင် (Gold color လေးနဲ့ပေါ်အောင်)
-            ctx.font = "bold 20px Arial";
-            ctx.fillText("KING ENGINEERING Air-Con Service", 95, canvas.height - 200);
+            // King Engineering Title
+            ctx.fillStyle = "#FFD700"; 
+            ctx.font = "bold 24px Arial";
+            ctx.fillText("KING ENGINEERING Air-Con Service", marginX + 85, startY + 20);
 
-            // 2. Project Name
+            // Project Name
             ctx.fillStyle = "white";
-            ctx.font = "18px Arial";
-            ctx.fillText("CITY SCHOOL YANGON AC PROJECT", 95, canvas.height - 170);
+            ctx.font = "bold 20px Arial";
+            ctx.fillText("CITY SCHOOL YANGON AC PROJECT", marginX + 85, startY + 55);
 
-            // 3. Custom Text (Text box ထဲက ရိုက်ထည့်လိုက်တဲ့ စာ)
+            // Custom Text
             const customText = customTextInput.value;
             if (customText.trim() !== "") {
-                ctx.fillStyle = "#4CAF50"; // အစိမ်းရောင်
-                ctx.font = "bold 18px Arial";
-                ctx.fillText("🔧 " + customText, 25, canvas.height - 130);
+                ctx.fillStyle = "#4CAF50";
+                ctx.font = "bold 22px Arial";
+                ctx.fillText("🔧 " + customText, marginX + 15, startY + 100);
             }
 
-            // 4. Location & Date/Time
+            // Location & Date
             const dateStr = new Date().toLocaleString('en-US');
             ctx.fillStyle = "white";
-            ctx.font = "16px Arial";
-            ctx.fillText("📍 Lat: " + currentLat + ", Lon: " + currentLon, 25, canvas.height - 95);
-            ctx.fillText("🕒 " + dateStr, 25, canvas.height - 65);
+            ctx.font = "18px Arial";
+            ctx.fillText("📍 Lat: " + currentLat + ", Lon: " + currentLon, marginX + 15, startY + 145);
+            ctx.fillText("🕒 Date: " + dateStr, marginX + 15, startY + 180);
 
-            // Output to Image tag
-            const dataUrl = canvas.toDataURL('image/jpeg');
-            capturedImage.src = dataUrl;
-            capturedImage.style.display = "block";
+            // --- Auto Save Logic ---
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            const downloadLink = document.createElement('a');
+            
+            // Generate filename based on timestamp
+            const fileName = `King_Eng_AC_${new Date().getTime()}.jpg`;
+            downloadLink.href = dataUrl;
+            downloadLink.download = fileName;
+            
+            // Trigger auto-download
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
         });
     </script>
-
 </body>
 </html>
