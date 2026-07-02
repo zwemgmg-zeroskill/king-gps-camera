@@ -3,82 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>King Engineering Pro Camera</title>
+    <title>King Engineering Camera</title>
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
         #videoElement { width: 100vw; height: 100vh; object-fit: cover; }
-        .controls { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: space-around; align-items: center; z-index: 10; }
-        .btn { width: 65px; height: 65px; border-radius: 50%; border: 3px solid #fff; background: rgba(255,255,255,0.3); color: #fff; cursor: pointer; }
-        .record-btn { background: #ff3b30; }
-        #map { width: 80px; height: 80px; display: none; } /* Map ကို Hidden ထားပြီး Canvas ထဲပဲ သုံးမှာပါ */
-        #customInput { position: absolute; top: 20px; left: 10px; width: 90%; padding: 10px; z-index: 10; border-radius: 5px; }
+        #map { position: absolute; top: -9999px; width: 300px; height: 300px; }
+        .ui-overlay { position: absolute; bottom: 0; width: 100%; padding: 20px; background: rgba(0,0,0,0.5); color: #fff; z-index: 10; }
+        #captureBtn { width: 80px; height: 80px; border-radius: 50%; background: #fff; border: none; margin: 0 auto; display: block; }
     </style>
 </head>
 <body>
 
-<input type="text" id="customInput" placeholder="Enter Custom Text (e.g. Unit 3, Block A)">
 <video id="videoElement" autoplay playsinline></video>
 <div id="map"></div>
 
-<div class="controls">
-    <button class="btn" onclick="takePhoto()">📸</button>
-    <button class="btn record-btn" onclick="toggleRecord()">🎥</button>
+<div class="ui-overlay">
+    <input type="text" id="customText" placeholder="Custom Note" style="width:100%; margin-bottom:10px;">
+    <button id="captureBtn" onclick="processPhoto()">📸</button>
 </div>
 
-<canvas id="canvas" style="display:none;"></canvas>
-<img id="logo" src="logo.png" style="display:none;">
+<canvas id="mainCanvas" style="display:none;"></canvas>
 
 <script>
     const video = document.getElementById('videoElement');
-    const canvas = document.getElementById('canvas');
+    const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
-    const logo = document.getElementById('logo');
-    let map = L.map('map').setView([0, 0], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    // Camera Start
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => video.srcObject = stream);
 
-    async function startCamera() {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
-        video.srcObject = stream;
-    }
-
-    function takePhoto() {
+    async function processPhoto() {
+        // 1. Capture Video Frame
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0);
 
-        // Stamp Background
-        ctx.fillStyle = "rgba(0,0,0,0.7)";
-        ctx.fillRect(0, canvas.height - 250, canvas.width, 250);
+        // 2. Draw Stamp Area
+        ctx.fillStyle = "rgba(0,0,0,0.8)";
+        ctx.fillRect(0, canvas.height - 300, canvas.width, 300);
 
-        // Text & Details
+        // 3. Draw Text
         ctx.fillStyle = "#FFD700";
-        ctx.font = "bold 40px Arial";
-        ctx.fillText("CITY SCHOOL YANGON AC PROJECT", 20, canvas.height - 200);
+        ctx.font = "bold 60px Arial";
+        ctx.fillText("CITY SCHOOL YANGON AC PROJECT", 40, canvas.height - 220);
         
         ctx.fillStyle = "#fff";
-        ctx.font = "35px Arial";
-        ctx.fillText("KING ENGINEERING", 20, canvas.height - 150);
+        ctx.fillText("KING ENGINEERING", 40, canvas.height - 150);
         
         ctx.fillStyle = "#4CAF50";
-        ctx.fillText(document.getElementById('customInput').value, 20, canvas.height - 100);
-
-        // Date & Location
+        ctx.fillText(document.getElementById('customText').value, 40, canvas.height - 80);
+        
         ctx.fillStyle = "#fff";
-        ctx.font = "30px Arial";
-        ctx.fillText(new Date().toLocaleString(), 20, canvas.height - 50);
+        ctx.font = "40px Arial";
+        ctx.fillText(new Date().toLocaleString(), 40, canvas.height - 20);
 
-        // Logo
-        if(logo.complete) ctx.drawImage(logo, canvas.width - 150, canvas.height - 240, 120, 120);
-
+        // 4. Save
         const link = document.createElement('a');
-        link.download = 'King_Engineering_Photo.jpg';
-        link.href = canvas.toDataURL('image/jpeg');
+        link.download = 'King_Engineering_' + Date.now() + '.jpg';
+        link.href = canvas.toDataURL('image/jpeg', 1.0);
         link.click();
     }
-
-    startCamera();
 </script>
 </body>
 </html>
+
